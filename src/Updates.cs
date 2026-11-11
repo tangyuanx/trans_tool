@@ -31,7 +31,13 @@ namespace TransTool
         private const int MaxSize = 16 * 1024 * 1024;
         private readonly HttpClient client;
 
-        internal UpdateService() : this(new HttpClientHandler { AllowAutoRedirect = false }) {}
+        internal UpdateService() : this(CreateHandler()) {}
+
+        private static HttpClientHandler CreateHandler()
+        {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.SystemDefault;
+            return new HttpClientHandler { AllowAutoRedirect = false };
+        }
 
         internal UpdateService(HttpMessageHandler handler)
         {

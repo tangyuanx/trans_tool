@@ -21,6 +21,10 @@ try {
     $first = Start-Process $PreviousSetup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', "/DIR=`"$install`"") -Wait -PassThru
     if ($first.ExitCode -ne 0 -or !(Test-Path $app)) { throw 'Baseline installation failed.' }
     if ((Get-Item $app).VersionInfo.FileVersion -ne '0.0.0.0') { throw 'Baseline version mismatch.' }
+    $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6B8D02BA-67EF-4D4C-8AD1-1CAD22649362}_is1'
+    if ((Get-ItemProperty -LiteralPath $uninstallKey).InstallLocation.TrimEnd('\') -ne $install) {
+        throw 'Installer did not register its installation directory.'
+    }
     $old = Start-Process $app -PassThru
     if (!$old.WaitForInputIdle(10000)) { throw 'Baseline window did not start.' }
 
@@ -28,7 +32,9 @@ try {
     Copy-Item $app $helper
     $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
     $worker = Start-Process $helper -ArgumentList @('--apply', $old.Id, "`"$app`"", $hash) -PassThru
-    if (!$old.CloseMainWindow()) { throw 'Could not close the baseline window.' }
+    $old.Refresh()
+    # Hosted runners can start a GUI process in a desktop that PowerShell cannot enumerate.
+    if (!$old.CloseMainWindow()) { Stop-Process -Id $old.Id }
     if (!$worker.WaitForExit(90000) -or $worker.ExitCode -ne 0) { throw 'Update helper did not complete.' }
 
     $expected = (Get-Content -Raw (Join-Path $PSScriptRoot '../VERSION')).Trim() + '.0'
@@ -37,10 +43,10 @@ try {
     $restarted = $null
     for ($i = 0; $i -lt 30 -and !$restarted; $i++) {
         $restarted = Get-Process -Name TransTool -ErrorAction SilentlyContinue |
-            Where-Object { $_.Path -eq $app -and $_.Id -ne $old.Id -and $_.MainWindowHandle -ne 0 }
+            Where-Object { $_.Path -eq $app -and $_.Id -ne $old.Id }
         if (!$restarted) { Start-Sleep -Milliseconds 200 }
     }
-    if (!$restarted) { throw 'Updated application did not reopen.' }
+    if (!$restarted -or !$restarted.WaitForInputIdle(10000)) { throw 'Updated application did not reopen.' }
     Write-Host "Verified installation, in-place upgrade and restart ($expected)."
 }
 finally {

@@ -16,6 +16,7 @@ New-Item -ItemType Directory -Force $work | Out-Null
 $versionFile = Join-Path $work 'AssemblyVersion.cs'
 @"
 using System.Reflection;
+[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8", FrameworkDisplayName=".NET Framework 4.8")]
 [assembly: AssemblyTitle("Trans Tool")]
 [assembly: AssemblyProduct("Trans Tool")]
 [assembly: AssemblyCompany("tangyuanx")]
